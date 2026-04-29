@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Eye, Save, Sparkles, Loader2, KeyRound } from "lucide-react";
+import { ArrowLeft, Eye, Save, Sparkles, Loader2, KeyRound, RefreshCw, AlertTriangle } from "lucide-react";
 import { ProductForm } from "@/components/product-form";
 import { SalesPagePreview } from "@/components/sales-page-preview";
 import { SectionRegenerate } from "@/components/section-regenerate";
@@ -26,6 +26,8 @@ export default function NewPageClient() {
   const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
   const [apiKeyInput, setApiKeyInput] = useState("");
   const [isSavingKey, setIsSavingKey] = useState(false);
+  const [isEditingKey, setIsEditingKey] = useState(false);
+  const [showUpdateWarning, setShowUpdateWarning] = useState(false);
 
   useEffect(() => {
     fetch("/api/settings/openai-key")
@@ -48,7 +50,12 @@ export default function NewPageClient() {
       }
       setHasApiKey(true);
       setApiKeyInput("");
-      toast({ title: "API key saved!", description: "You can now generate sales pages." });
+      setIsEditingKey(false);
+      setShowUpdateWarning(false);
+      toast({
+        title: hasApiKey ? "API key updated!" : "API key saved!",
+        description: "You can now generate sales pages.",
+      });
     } catch (err) {
       toast({
         title: "Failed to save API key",
@@ -57,6 +64,14 @@ export default function NewPageClient() {
       });
     } finally {
       setIsSavingKey(false);
+    }
+  };
+
+  const handleUpdateClick = () => {
+    if (hasApiKey) {
+      setShowUpdateWarning(true);
+    } else {
+      handleSaveApiKey();
     }
   };
 
@@ -117,57 +132,132 @@ export default function NewPageClient() {
 
   return (
     <div>
-      {/* API Key Setup — shown when key is not yet saved */}
-      {hasApiKey === false && (
-        <div className="mb-6 bg-amber-50 border border-amber-200 rounded-xl p-6 shadow-sm">
-          <div className="flex items-center gap-2 mb-3">
-            <KeyRound className="w-5 h-5 text-amber-600" />
-            <h2 className="font-semibold text-amber-800 text-base">OpenAI API Key Required</h2>
-          </div>
-          <p className="text-sm text-amber-700 mb-4">
-            To generate sales pages you need to provide your OpenAI API key. It will be stored
-            securely in the database and is only used for your account.
-            Get your key at{" "}
-            <a
-              href="https://platform.openai.com/api-keys"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline font-medium"
-            >
-              platform.openai.com/api-keys
-            </a>.
-          </p>
-          <div className="flex gap-3 items-end">
-            <div className="flex-1 space-y-1">
-              <Label htmlFor="apikey" className="text-amber-800">API Key</Label>
-              <Input
-                id="apikey"
-                placeholder="sk-..."
-                value={apiKeyInput}
-                onChange={(e) => setApiKeyInput(e.target.value)}
-                className="font-mono text-sm bg-white"
-              />
-            </div>
-            <Button
-              onClick={handleSaveApiKey}
-              disabled={isSavingKey || !apiKeyInput.trim()}
-              className="bg-amber-600 hover:bg-amber-700 text-white"
-            >
-              {isSavingKey ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                "Save Key"
-              )}
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* Loading state */}
-      {hasApiKey === null && (
+      {/* API Key Panel — always visible */}
+      {hasApiKey === null ? (
         <div className="flex items-center gap-2 text-gray-400 text-sm mb-6">
           <Loader2 className="w-4 h-4 animate-spin" />
           Checking API key...
+        </div>
+      ) : (
+        <div className={`mb-6 rounded-xl border p-5 shadow-sm ${hasApiKey ? "bg-green-50 border-green-200" : "bg-amber-50 border-amber-200"}`}>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <KeyRound className={`w-5 h-5 ${hasApiKey ? "text-green-600" : "text-amber-600"}`} />
+              <h2 className={`font-semibold text-base ${hasApiKey ? "text-green-800" : "text-amber-800"}`}>
+                {hasApiKey ? "OpenAI API Key" : "OpenAI API Key Required"}
+              </h2>
+              {hasApiKey && (
+                <span className="text-xs bg-green-100 text-green-700 border border-green-200 rounded-full px-2 py-0.5 font-medium">
+                  Saved
+                </span>
+              )}
+            </div>
+            {hasApiKey && !isEditingKey && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-green-700 border-green-300 hover:bg-green-100 gap-1.5"
+                onClick={() => setIsEditingKey(true)}
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                Update Key
+              </Button>
+            )}
+          </div>
+
+          {/* Saved state — show masked key */}
+          {hasApiKey && !isEditingKey && (
+            <p className="text-sm text-green-700 font-mono bg-green-100 border border-green-200 rounded-lg px-3 py-2 inline-block">
+              sk-•••••••••••••••••••••••••••••••••••••
+            </p>
+          )}
+
+          {/* Edit / new key form */}
+          {(!hasApiKey || isEditingKey) && (
+            <>
+              {!hasApiKey && (
+                <p className="text-sm text-amber-700 mb-4">
+                  To generate sales pages you need to provide your OpenAI API key. It will be stored
+                  securely in the database and is only used for your account. Get your key at{" "}
+                  <a
+                    href="https://platform.openai.com/api-keys"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline font-medium"
+                  >
+                    platform.openai.com/api-keys
+                  </a>.
+                </p>
+              )}
+
+              <div className="flex gap-3 items-end mt-3">
+                <div className="flex-1 space-y-1">
+                  <Label htmlFor="apikey" className={hasApiKey ? "text-green-800" : "text-amber-800"}>
+                    {hasApiKey ? "New API Key" : "API Key"}
+                  </Label>
+                  <Input
+                    id="apikey"
+                    placeholder="sk-..."
+                    value={apiKeyInput}
+                    onChange={(e) => setApiKeyInput(e.target.value)}
+                    className="font-mono text-sm bg-white"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  {isEditingKey && (
+                    <Button
+                      variant="outline"
+                      onClick={() => { setIsEditingKey(false); setApiKeyInput(""); setShowUpdateWarning(false); }}
+                    >
+                      Cancel
+                    </Button>
+                  )}
+                  <Button
+                    onClick={handleUpdateClick}
+                    disabled={isSavingKey || !apiKeyInput.trim()}
+                    className={hasApiKey ? "bg-green-600 hover:bg-green-700 text-white" : "bg-amber-600 hover:bg-amber-700 text-white"}
+                  >
+                    {isSavingKey ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : hasApiKey ? (
+                      "Update Key"
+                    ) : (
+                      "Save Key"
+                    )}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Warning popup */}
+              {showUpdateWarning && (
+                <div className="mt-3 bg-yellow-50 border border-yellow-300 rounded-lg px-4 py-3 flex items-start gap-3">
+                  <AlertTriangle className="w-4 h-4 text-yellow-600 mt-0.5 shrink-0" />
+                  <div className="flex-1 text-sm text-yellow-800">
+                    <p className="font-semibold mb-1">Overwrite existing API key?</p>
+                    <p>Your current key will be replaced. This cannot be undone.</p>
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-yellow-400 text-yellow-800 hover:bg-yellow-100"
+                      onClick={() => setShowUpdateWarning(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="bg-yellow-600 hover:bg-yellow-700 text-white"
+                      disabled={isSavingKey}
+                      onClick={handleSaveApiKey}
+                    >
+                      {isSavingKey ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Confirm"}
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
         </div>
       )}
 
